@@ -9,6 +9,7 @@ import calendar
 import logging
 import warnings
 import cmocean
+import datetime
 import matplotlib.cbook
 warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
 
@@ -23,8 +24,10 @@ rcParams.update({'font.size': 22})
 
 # Period and directories
 year = 2018
+now = datetime.datetime.now()
+currentyear = now.year
 # monthlist = [1, 2, 3, 4, 5, 6, 7, 8]
-monthlist = [1, 2, 3]
+monthlist = [1]
 satellite = 'Terra'
 datamonthdir = "/home/ctroupin/Data/SST/Global/monthly/"
 dataclimdir = "/home/ctroupin/Data/SST/Global/monthly_clim/"
@@ -53,29 +56,44 @@ for month in monthlist:
 
     # Create file names and check if they exist
     MonthlyFileName = sstOceanColor.makemonthfilename(year, month, satellite)
-    MonthlyClimFileName = sstOceanColor.makeclimfilename(year, month, satellite)
+
+    MonthlyClimFileName = sstOceanColor.makeclimfilename(currentyear, month, satellite)
+    if not(os.path.exists(os.path.join(dataclimdir, MonthlyClimFileName))):
+        logger.warn("No monthly climatology file for year {}".format(currentyear))
+        logger.warn("Will use the file for year {}".format(currentyear-1))
+        MonthlyClimFileName = sstOceanColor.makeclimfilename(currentyear-1, month, satellite)
 
     logger.info("Monthly file: {}".format(MonthlyFileName))
     logger.info("Monthly climatology file: {}".format(MonthlyClimFileName))
 
     # Create figure names
-    fignameregion = 'SST_anomaly_{0}_{1}_{2}'.format(satellite, year, month)
-    fignameregionfield = 'SST_{0}_{1}_{2}'.format(satellite, year, month)
-    fignameglob = 'SST_anomaly_global_{0}_{1}_{2}'.format(satellite, year, month)
-    fignameglobfield = 'SST_global_{0}_{1}_{2}'.format(satellite, year, month)
+    mmonth = str(month).zfill(2)
+    fignameregion = 'SST_anomaly_{0}_{1}_{2}'.format(satellite, year, mmonth)
+    fignameregionfield = 'SST_{0}_{1}_{2}'.format(satellite, year, mmonth)
+    fignameglob = 'SST_anomaly_global_{0}_{1}_{2}'.format(satellite, year, mmonth)
+    fignameglobfield = 'SST_global_{0}_{1}_{2}'.format(satellite, year, mmonth)
     logger.info(fignameregion)
 
     # Read SST
     # (whole field, so that we can loop and perform extractions)
-    sstmonth = sstOceanColor.SSTfield().readfile(os.path.join(datamonthdir, MonthlyFileName))
-    sstclim = sstOceanColor.SSTfield().readfile(os.path.join(dataclimdir, MonthlyClimFileName))
+    fname = os.path.join(datamonthdir, MonthlyFileName)
+    if os.path.exists(fname):
+        sstmonth = sstOceanColor.SSTfield().readfile(fname)
+    else:
+        logger.error("The file {} does not exist".format(fname))
+
+    fname = os.path.join(dataclimdir, MonthlyClimFileName)
+    if os.path.exists(fname):
+        sstclim = sstOceanColor.SSTfield().readfile(fname)
+    else:
+        logger.error("The file {} does not exist".format(fname))
 
     # Compute anomalies
     sstanom = sstOceanColor.SSTfield()
     sstanom.lon = sstmonth.lon
     sstanom.lat = sstmonth.lat
     sstanom.sst = sstmonth.sst - sstclim.sst
-    logger.debug(sstanom.sst.shape)
+    logger.debug("Size of SST matrix: {}".format(sstanom.sst.shape))
 
     figtitleanom = "SST anomalies ($^\circ$C) $-$ Satellite {0} \n{1} {2}".format(satellite,
                                                                               calendar.month_name[month],
